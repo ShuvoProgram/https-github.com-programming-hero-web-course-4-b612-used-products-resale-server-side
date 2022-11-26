@@ -23,17 +23,19 @@ async function run () {
     try {
         const productCollection = client.db('logistic').collection('products');
         const categoryCollection = client.db('logistic').collection('category');
+        const advertisementCollection = client.db('logistic').collection('advertisement');
+        const bookingCollection = client.db('logistic').collection('booking');
         const usersCollection = client.db('logistic').collection('users');
 
         // Product
         app.post('/products', async (req, res) => {
             try {
-                const result = await productCollection.insertOne(req.body);
+                const products = await productCollection.insertOne(req.body);
 
-                if (result.insertedId) {
+                if (products.insertedId) {
                     res.send({
                         success: true,
-                        message: `Successfully created the ${req.body.name} with id ${result.insertedId}`
+                        message: `Successfully created the ${req.body.name} with id ${products.insertedId}`
                     })
                 } else {
                     res.send({
@@ -48,6 +50,11 @@ async function run () {
                     error: error.message,
                 });
             }
+        })
+
+        app.get('/products', async (req, res) => {
+            const product = await productCollection.find().toArray();
+            res.send(product)
         })
 
         // category
@@ -66,17 +73,43 @@ async function run () {
 
         app.get('/category/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id: ObjectId(id)};
-            const category = await categoryCollection.findOne(query);
-            res.send(category);
+            const query = { categoryID: id };
+            const category =  productCollection.find(query);
+            const result = await category.toArray();
+            res.send(result);
         })
-        
+
 
         //users
         app.post('/users', async(req, res) => {
             const user = req.body;
             console.log(user);
             const result = await usersCollection.insertOne(user);
+            res.send(result);
+        })
+
+        //role
+        app.get('/users/seller/', async (req, res) => {
+            const query = {};
+            const user = await usersCollection.find(query).toArray();
+            const filter = user.filter(e => e.role === 'seller')
+            res.send(filter);
+        })
+
+        
+
+        app.get('/users/buyer/', async (req, res) => {
+            const query = {};
+            const user = await usersCollection.find(query).toArray();
+            const filter = user.filter(e => e.role === 'buyer')
+            res.send(filter);
+
+        })
+
+        app.delete('/users/buyer/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: ObjectId(id) };
+            const result = await usersCollection.deleteOne(filter);
             res.send(result);
         })
 
@@ -87,7 +120,7 @@ async function run () {
             res.send({isSeller: user?.role === 'seller'})
         })
 
-        app.post('/user/:email', async (req, res) => {
+        app.patch('/user/:email', async (req, res) => {
             try {
                 const email = req.params.email;
                 const user = req.body;
@@ -123,9 +156,20 @@ async function run () {
             const email = req.params.email;
             const query = { email }
             const user = await usersCollection.findOne(query);
-            res.send({isAdmin: user?.role === 'admin'});
+            res.send({ isAdmin: user?.role === 'admin' });
         })
+
+        //role
+        // app.get('/users/seller/', async (req, res) => {
+        //     const query = {};
+        //     const user = await usersCollection.find(query).toArray();
+        //     const filter = user.filter(e => e.role === 'seller')
+        //     res.send(filter);
+
+        // })
+
         
+
     } catch (error) {
         console.log(error.bgRed, error.message.bold)
     }
