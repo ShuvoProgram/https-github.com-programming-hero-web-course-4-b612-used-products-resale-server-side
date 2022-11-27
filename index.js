@@ -5,6 +5,7 @@ require('dotenv').config();
 // require('colors');
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY)
 
 const port = process.env.PORT || 5000;
 
@@ -44,6 +45,7 @@ async function run () {
         const advertisementCollection = client.db('logistic').collection('advertisement');
         const bookingCollection = client.db('logistic').collection('booking');
         const usersCollection = client.db('logistic').collection('users');
+        const paymentsCollection = client.db('logistic').collection('payments');
 
         // verifyAdmin after verifyJWT
         const verifyAdmin = async (req, res, next) => {
@@ -56,6 +58,17 @@ async function run () {
             }
             next();
         }
+
+        app.get('/jwt', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email };
+            const user = await usersCollection.findOne(query);
+            if (user) {
+                const token = jwt.sign({ email }, process.env.ACCESS_TOKEN, { expiresIn: '1d' })
+                return res.send({ accessToken: token });
+            }
+            res.status(403).send({ accessToken: '' })
+        })
 
         // Product
         app.post('/products', async (req, res) => {
@@ -82,10 +95,6 @@ async function run () {
             }
         })
 
-        // app.get('/products', async (req, res) => {
-        //     const product = await productCollection.find().sort({_id: -1}).toArray();
-        //     res.send(product)
-        // })
 
         app.get('/products', async (req, res) => {
             const id = req.query.id;
@@ -159,17 +168,24 @@ async function run () {
                 })
             }
         })
-
+00
         app.get('/booking', async (req, res) => {
             const email = req.query.email;
-            const decodedEmail = req.decoded.email;
+            // const decodedEmail = req.decoded.email;
 
-            if(email !== decodedEmail){
-                return res.status(403).send({message: 'forbidden access'});
-            }
+            // if(email !== decodedEmail){
+            //     return res.status(403).send({message: 'forbidden access'});
+            // }
             const query = {email: email};
             const bookings = await bookingCollection.find(query).toArray();
             res.send(bookings);
+        })
+
+        app.get('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const booking = await bookingCollection.findOne(query);
+            res.send(booking);
         })
 
         // category
@@ -195,52 +211,36 @@ async function run () {
         })
 
 
-        //users
+        //users seller
         app.post('/users', async(req, res) => {
             const user = req.body;
             const result = await usersCollection.insertOne(user);
             res.send(result);
         })
 
-        app.put('/users', async (req, res) => {
-            try {
-                const email = req.params.email;
-                const user = req.body;
-                const filter = { email: email };
-                const options = { upsert: true };
-                const updateDoc = {
-                    $set: {
-                        name: user.name,
-                        email: user.email,
-                        role: user.role,
-                        photoUrl: user.photoUrl,
-                        status: user.verify
-                    }
-                }
-                const result = await usersCollection.insertOne(filter, updateDoc, options);
-                if (result.insertedId) {
-                    res.send({
-                        success: true,
-                        message: `added new user ${req.body.name}`
-                    })
-                } else {
-                    res.send({
-                        success: false,
-                        message: `Couldn't added user`
-                    })
-                }
-                res.send(result)
-            } catch (error) {
-                console.log(error.name.bgRed, error.message.bold);
-                res.send({
-                    success: false,
-                    error: error.message,
-                });
-            }
-        })
-
 
         //role
+        
+        app.put('/users', async (req, res) => {
+            const email = req.body.email;
+            const data = req.body;
+            // console.log(data, email)
+            const query = { email: email };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    name: data.name,
+                    email: data.email,
+                    role: data.role,
+                    photoUrl: data.photoUrl,
+                    verify: data.verify
+                }
+            };
+            const result = await usersCollection.updateOne(query, updateDoc, options);
+            res.send(result)
+            
+        });
+        
         app.get('/users/seller/', async (req, res) => {
             const query = {};
             const user = await usersCollection.find(query).toArray();
@@ -300,8 +300,6 @@ async function run () {
         })
 
 
-        
-
         //admin
         app.get('/users/admin/:email', async (req, res) => {
             const email = req.params.email;
@@ -313,20 +311,21 @@ async function run () {
 
         //payment
         app.post('/create-payment-intent', async (req, res) => {
-            const booking = req.body;
-            const price = booking.price;
-            const amount = price * 100;
-
-            const paymentIntent = await stripe.paymentIntents.create({
-                currency: 'usd',
-                amount: amount,
-                "payment_method_types": [
-                    "card"
-                ]
-            })
-            res.send({
-                clientSecret: paymentIntent.client_secret,
-            })
+            const price = req.body.price;
+            const amount = parseFloat(price * 100);
+            try {
+                const paymentIntent = await stripe.paymentIntents.create({
+                    currency: 'usd',
+                    amount: amount,
+                    payment_method_types: [
+                        "card"
+                    ]
+                })
+                res.send({clientSecret: paymentIntent.client_secret})
+                
+            } catch (error) {
+                console.log(error)
+            }
         })
 
         app.post('/payments', async (req, res) => {
@@ -340,7 +339,7 @@ async function run () {
                     transactionId: payment.transactionId
                 }
             }
-            const updatedResult = await BookingCollection.updateOne(filter, updatedDoc)
+            const updatedResult = await bookingCollection.updateOne(filter, updatedDoc)
             res.send(result);
         })
         
