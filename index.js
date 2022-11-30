@@ -152,13 +152,10 @@ async function run () {
         })
 
         app.get('/products/advertisement', async (req, res) => {
-            const query = {
-                advertisement: {
-                    $eq: true
-                }
-            };
-            const advertise = await productCollection.findOne(query);
-            res.send(advertise);
+            const query = {};
+            const advertise = await productCollection.find(query).toArray();
+            const filter = advertise.filter(e => e.advertisement === true);
+            res.send(filter);
         })
 
         app.put('/products/sold/:id', async (req, res) => {
@@ -181,7 +178,7 @@ async function run () {
                     $eq: true
                 }
             };
-            const sold = await productCollection.findOne(query);
+            const sold = await productCollection.find(query).toArray();
             res.send(sold);
         })
 
@@ -225,11 +222,6 @@ async function run () {
 
         app.get('/booking', async (req, res) => {
             const email = req.query.email;
-            // const decodedEmail = req.decoded.email;
-
-            // if(email !== decodedEmail){
-            //     return res.status(403).send({message: 'forbidden access'});
-            // }
             const query = {email: email};
             const bookings = await bookingCollection.find(query).toArray();
             res.send(bookings);
@@ -295,7 +287,7 @@ async function run () {
 
 
         //users seller
-        app.get('/users/seller/', async (req, res) => {
+        app.get('/users/seller/', verifyJWT, async (req, res) => {
             const user = await usersCollection.find().toArray();
             const filter = user.filter(e => e.role === 'seller')
             res.send(filter);
@@ -307,6 +299,13 @@ async function run () {
             const user = await usersCollection.find(query).toArray();
             const filter = user.filter(e => e.role === 'seller')
             res.send(filter);
+        })
+
+        app.get('/user/seller/:email', async(req, res) => {
+            const email = req.params.email;
+            const query = {email: email}
+            const seller = await usersCollection.findOne(query);
+            res.send(seller)
         })
 
         app.put('/users/seller/:id', async (req, res) => {
@@ -339,7 +338,7 @@ async function run () {
 
         //user buyer
 
-        app.get('/users/buyer/', async (req, res) => {
+        app.get('/users/buyer/', verifyJWT, async (req, res) => {
             const query = {};
             const user = await usersCollection.find(query).toArray();
             const filter = user.filter(e => e.role === 'buyer')
