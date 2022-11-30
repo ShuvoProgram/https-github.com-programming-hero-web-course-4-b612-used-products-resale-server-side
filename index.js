@@ -287,7 +287,7 @@ async function run () {
 
 
         //users seller
-        app.get('/users/seller/', verifyJWT, async (req, res) => {
+        app.get('/users/seller/', async (req, res) => {
             const user = await usersCollection.find().toArray();
             const filter = user.filter(e => e.role === 'seller')
             res.send(filter);
@@ -338,7 +338,7 @@ async function run () {
 
         //user buyer
 
-        app.get('/users/buyer/', verifyJWT, async (req, res) => {
+        app.get('/users/buyer/', async (req, res) => {
             const query = {};
             const user = await usersCollection.find(query).toArray();
             const filter = user.filter(e => e.role === 'buyer')
